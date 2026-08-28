@@ -1,18 +1,27 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 import Login from './Login'
-
+import Sidebar from './components/Sidebar'
+import Header from './components/Header'
 import Condominiums from './pages/Condominiums'
 import './App.css'
-function App() {
-const [prompt, setPrompt] = useState('')
-const [connectionStatus, setConnectionStatus] = useState('A testar ligação...')
-const [session, setSession] = useState<any>(null)
-const [checkingAuth, setCheckingAuth] = useState(true)
-const [profile, setProfile] = useState<any>(null)
-const [currentPage, setCurrentPage] = useState('dashboard')
 
-  // Verificar autenticação
+function App() {
+  const [prompt, setPrompt] = useState('')
+  const [connectionStatus, setConnectionStatus] =
+    useState('A testar ligação...')
+
+  const [session, setSession] = useState<any>(null)
+  const [checkingAuth, setCheckingAuth] = useState(true)
+  const [profile, setProfile] = useState<any>(null)
+
+  const [currentPage, setCurrentPage] =
+    useState('dashboard')
+
+  // =====================================================
+  // AUTENTICAÇÃO
+  // =====================================================
+
   useEffect(() => {
     async function getSession() {
       const { data } = await supabase.auth.getSession()
@@ -25,16 +34,21 @@ const [currentPage, setCurrentPage] = useState('dashboard')
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-    })
+    } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session)
+      }
+    )
 
     return () => {
       subscription.unsubscribe()
     }
   }, [])
 
-  // Carregar perfil do utilizador
+  // =====================================================
+  // PERFIL DO UTILIZADOR
+  // =====================================================
+
   useEffect(() => {
     async function getProfile() {
       if (!session?.user?.id) {
@@ -49,7 +63,11 @@ const [currentPage, setCurrentPage] = useState('dashboard')
         .single()
 
       if (error) {
-        console.error('Erro ao carregar perfil:', error)
+        console.error(
+          'Erro ao carregar perfil:',
+          error
+        )
+
         setProfile(null)
         return
       }
@@ -62,7 +80,10 @@ const [currentPage, setCurrentPage] = useState('dashboard')
     getProfile()
   }, [session])
 
-  // Testar ligação ao Supabase
+  // =====================================================
+  // TESTAR SUPABASE
+  // =====================================================
+
   useEffect(() => {
     async function testSupabase() {
       const { error } = await supabase
@@ -71,240 +92,171 @@ const [currentPage, setCurrentPage] = useState('dashboard')
         .limit(1)
 
       if (error) {
-        console.error('Erro Supabase:', error)
-        setConnectionStatus('Erro na ligação ao Supabase')
+        console.error(
+          'Erro Supabase:',
+          error
+        )
+
+        setConnectionStatus(
+          'Erro na ligação ao Supabase'
+        )
+
         return
       }
 
-      setConnectionStatus('Supabase ligado ✓')
+      setConnectionStatus(
+        'Supabase ligado ✓'
+      )
     }
 
     testSupabase()
   }, [])
 
-  // Enquanto verificamos o login
+  // =====================================================
+  // LOADING
+  // =====================================================
+
   if (checkingAuth) {
     return <div>A carregar...</div>
   }
 
-  // Se não estiver autenticado, mostrar Login
+  // =====================================================
+  // LOGIN
+  // =====================================================
+
   if (!session) {
     return <Login />
   }
 
+  // =====================================================
+  // APLICAÇÃO
+  // =====================================================
+
   return (
     <div className="app">
-      <aside className="sidebar">
 
-        <div className="logo">
-          <span>🏢</span>
-          <strong>Gestão de Condomínios</strong>
-        </div>
+      <Sidebar
+        currentPage={currentPage}
+        setCurrentPage={setCurrentPage}
+        profile={profile}
+      />
 
-        <nav>
+      <main className="main">
 
-         <button
-  className={`nav-item ${
-    currentPage === 'dashboard' ? 'active' : ''
-  }`}
-  onClick={() => setCurrentPage('dashboard')}
->
-  <span>🏠</span>
-  Dashboard
-</button>
-
-        <button
-  className={`nav-item ${
-    currentPage === 'condominiums' ? 'active' : ''
-  }`}
-  onClick={() => setCurrentPage('condominiums')}
->
-  <span>🏢</span>
-  Condomínios
-</button>
-
-          <button className="nav-item">
-            <span>🏠</span>
-            Frações
-          </button>
-
-          <button className="nav-item">
-            <span>👥</span>
-            Condóminos
-          </button>
-
-          <button className="nav-item">
-            <span>💰</span>
-            Quotas
-          </button>
-
-          <button className="nav-item">
-            <span>🧾</span>
-            Despesas
-          </button>
-
-          <button className="nav-item">
-            <span>🔧</span>
-            Manutenção
-          </button>
-
-          <button className="nav-item">
-            <span>🏛️</span>
-            Assembleias
-          </button>
-
-          <button className="nav-item">
-            <span>📄</span>
-            Documentos
-          </button>
-
-          <button className="nav-item">
-            <span>⚙️</span>
-            Definições
-          </button>
-
-        </nav>
-
-        <div className="sidebar-footer">
-
-          <div className="user">
-
-            <div className="avatar">
-              {profile?.full_name?.charAt(0)?.toUpperCase() ?? 'U'}
-            </div>
-
-            <div>
-              <strong>
-                {profile?.full_name ?? 'Utilizador'}
-              </strong>
-
-              <small>
-                {profile?.role === 'admin'
-                  ? 'Administrador'
-                  : profile?.role === 'manager'
-                    ? 'Gestor'
-                    : 'Condómino'}
-              </small>
-            </div>
-
-          </div>
-
-        </div>
-
-      </aside>
-
-   <main className="main">
-
-  {currentPage === 'dashboard' && (
-    <>
-      <header className="header">
-
-        <div>
-          <h1>Dashboard</h1>
-
-          <p>
-            Gestão dos teus condomínios.
-          </p>
-        </div>
-
-        <div className="status">
-          <span className="status-dot"></span>
-          {connectionStatus}
-        </div>
-
-      </header>
-
-      <section className="hero">
-
-        <div className="hero-content">
-
-          <span className="badge">
-            🏢 Gestão de Condomínios
-          </span>
-
-          <h2>
-            Bem-vindo ao
-            <span> teu sistema</span>
-          </h2>
-
-          <p>
-            Gere condomínios, frações, condóminos,
-            quotas, despesas e documentos num único local.
-          </p>
-
-          <div className="prompt-box">
-
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Escreve aqui uma instrução para a IA..."
+        {currentPage === 'dashboard' && (
+          <>
+            <Header
+              title="Dashboard"
+              description="Gestão dos teus condomínios."
+              connectionStatus={connectionStatus}
             />
 
-            <div className="prompt-footer">
+            <section className="hero">
 
-              <span>
-                {prompt.length} caracteres
-              </span>
+              <div className="hero-content">
 
-              <button className="create-button">
-                ✨ Criar
-              </button>
+                <span className="badge">
+                  🏢 Gestão de Condomínios
+                </span>
 
-            </div>
+                <h2>
+                  Bem-vindo ao
+                  <span> teu sistema</span>
+                </h2>
 
-          </div>
+                <p>
+                  Gere condomínios, frações,
+                  condóminos, quotas, despesas
+                  e documentos num único local.
+                </p>
 
-        </div>
+                <div className="prompt-box">
 
-      </section>
+                  <textarea
+                    value={prompt}
+                    onChange={(e) =>
+                      setPrompt(e.target.value)
+                    }
+                    placeholder="Escreve aqui uma instrução para a IA..."
+                  />
 
-      <section className="projects">
+                  <div className="prompt-footer">
 
-        <div className="section-header">
+                    <span>
+                      {prompt.length} caracteres
+                    </span>
 
-          <div>
-            <h3>Resumo</h3>
+                    <button className="create-button">
+                      ✨ Criar
+                    </button>
 
-            <p>
-              Informação geral dos teus condomínios.
-            </p>
-          </div>
+                  </div>
 
-          <button
-            className="secondary-button"
-            onClick={() => setCurrentPage('condominiums')}
-          >
-            + Novo condomínio
-          </button>
+                </div>
 
-        </div>
+              </div>
 
-        <div className="empty-state">
+            </section>
 
-          <div className="empty-icon">
-            🏢
-          </div>
+            <section className="projects">
 
-          <h3>
-            Ainda não tens condomínios
-          </h3>
+              <div className="section-header">
 
-          <p>
-            Cria o teu primeiro condomínio
-            para começar a gerir a aplicação.
-          </p>
+                <div>
+                  <h3>Resumo</h3>
 
-        </div>
+                  <p>
+                    Informação geral dos teus
+                    condomínios.
+                  </p>
+                </div>
 
-      </section>
-    </>
-  )}
+                <button
+                  className="secondary-button"
+                  onClick={() =>
+                    setCurrentPage('condominiums')
+                  }
+                >
+                  + Novo condomínio
+                </button>
 
-  {currentPage === 'condominiums' && (
-    <Condominiums />
-  )}
+              </div>
 
-</main>
+              <div className="empty-state">
+
+                <div className="empty-icon">
+                  🏢
+                </div>
+
+                <h3>
+                  Ainda não tens condomínios
+                </h3>
+
+                <p>
+                  Cria o teu primeiro condomínio
+                  para começar a gerir a aplicação.
+                </p>
+
+              </div>
+
+            </section>
+          </>
+        )}
+
+        {currentPage === 'condominiums' && (
+          <>
+            <Header
+              title="Condomínios"
+              description="Gere os teus condomínios."
+              connectionStatus={connectionStatus}
+            />
+
+            <Condominiums />
+          </>
+        )}
+
+      </main>
+
     </div>
   )
 }
