@@ -5,9 +5,10 @@ import Sidebar from './components/Sidebar'
 import Header from './components/Header'
 import Condominiums from './pages/Condominiums'
 import './App.css'
+import Dashboard from './pages/Dashboard'
 
 function App() {
-  const [prompt, setPrompt] = useState('')
+ // const [prompt, setPrompt] = useState('')
   const [connectionStatus, setConnectionStatus] =
     useState('A testar ligação...')
 
@@ -144,104 +145,11 @@ function App() {
       <main className="main">
 
         {currentPage === 'dashboard' && (
-          <>
-            <Header
-              title="Dashboard"
-              description="Gestão dos teus condomínios."
-              connectionStatus={connectionStatus}
-            />
-
-            <section className="hero">
-
-              <div className="hero-content">
-
-                <span className="badge">
-                  🏢 Gestão de Condomínios
-                </span>
-
-                <h2>
-                  Bem-vindo ao
-                  <span> teu sistema</span>
-                </h2>
-
-                <p>
-                  Gere condomínios, frações,
-                  condóminos, quotas, despesas
-                  e documentos num único local.
-                </p>
-
-                <div className="prompt-box">
-
-                  <textarea
-                    value={prompt}
-                    onChange={(e) =>
-                      setPrompt(e.target.value)
-                    }
-                    placeholder="Escreve aqui uma instrução para a IA..."
-                  />
-
-                  <div className="prompt-footer">
-
-                    <span>
-                      {prompt.length} caracteres
-                    </span>
-
-                    <button className="create-button">
-                      ✨ Criar
-                    </button>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-            </section>
-
-            <section className="projects">
-
-              <div className="section-header">
-
-                <div>
-                  <h3>Resumo</h3>
-
-                  <p>
-                    Informação geral dos teus
-                    condomínios.
-                  </p>
-                </div>
-
-                <button
-                  className="secondary-button"
-                  onClick={() =>
-                    setCurrentPage('condominiums')
-                  }
-                >
-                  + Novo condomínio
-                </button>
-
-              </div>
-
-              <div className="empty-state">
-
-                <div className="empty-icon">
-                  🏢
-                </div>
-
-                <h3>
-                  Ainda não tens condomínios
-                </h3>
-
-                <p>
-                  Cria o teu primeiro condomínio
-                  para começar a gerir a aplicação.
-                </p>
-
-              </div>
-
-            </section>
-          </>
-        )}
+  <Dashboard
+    connectionStatus={connectionStatus}
+    setCurrentPage={setCurrentPage}
+  />
+)}
 
         {currentPage === 'condominiums' && (
           <>
