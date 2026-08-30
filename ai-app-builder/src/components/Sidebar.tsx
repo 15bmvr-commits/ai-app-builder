@@ -16,13 +16,14 @@ function Sidebar({
     { id: 'dashboard', icon: '🏠', label: 'Dashboard' },
     { id: 'condominiums', icon: '🏢', label: 'Condomínios' },
     { id: 'fractions', icon: '🏠', label: 'Frações' },
-    { id: 'residents', icon: '👥', label: 'Condóminos' },
+    { id: 'people', icon: '👥', label: 'Condóminos' },
     { id: 'fees', icon: '💰', label: 'Quotas' },
     { id: 'expenses', icon: '🧾', label: 'Despesas' },
     { id: 'maintenance', icon: '🔧', label: 'Manutenção' },
     { id: 'meetings', icon: '🏛️', label: 'Assembleias' },
     { id: 'documents', icon: '📄', label: 'Documentos' },
     { id: 'settings', icon: '⚙️', label: 'Definições' },
+    
   ]
 
   const roleLabel =

@@ -5,7 +5,10 @@ import Sidebar from './components/Sidebar'
 import Header from './components/Header'
 import Condominiums from './pages/Condominiums'
 import './App.css'
+import Fractions from './pages/Fractions'
 import Dashboard from './pages/Dashboard'
+import People from './pages/People'
+import PersonDetails from './pages/PersonDetails'
 
 function App() {
  // const [prompt, setPrompt] = useState('')
@@ -18,7 +21,8 @@ function App() {
 
   const [currentPage, setCurrentPage] =
     useState('dashboard')
-
+const [selectedPersonId, setSelectedPersonId] =
+  useState<string | null>(null)
   // =====================================================
   // AUTENTICAÇÃO
   // =====================================================
@@ -162,7 +166,32 @@ function App() {
             <Condominiums />
           </>
         )}
+{currentPage === 'fractions' && (
+  <>
+    <Header
+      title="Frações"
+      description="Gere as frações dos teus condomínios."
+      connectionStatus={connectionStatus}
+    />
 
+    <Fractions />
+  </>
+)}
+
+{currentPage === 'people' && (
+  <People />
+)}
+
+{currentPage === 'person-details' &&
+  selectedPersonId && (
+    <PersonDetails
+      personId={selectedPersonId}
+      onBack={() => {
+        setSelectedPersonId(null)
+        setCurrentPage('people')
+      }}
+    />
+)}
       </main>
 
     </div>
