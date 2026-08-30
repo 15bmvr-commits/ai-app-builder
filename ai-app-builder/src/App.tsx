@@ -10,6 +10,9 @@ import Dashboard from './pages/Dashboard'
 import People from './pages/People'
 import PersonDetails from './pages/PersonDetails'
 
+import Fees from './pages/Fees'
+
+
 function App() {
  // const [prompt, setPrompt] = useState('')
   const [connectionStatus, setConnectionStatus] =
@@ -191,6 +194,18 @@ const [selectedPersonId, setSelectedPersonId] =
         setCurrentPage('people')
       }}
     />
+)}
+
+{currentPage === 'fees' && (
+  <>
+    <Header
+      title="Quotas"
+      description="Gere as quotas dos teus condomínios."
+      connectionStatus={connectionStatus}
+    />
+
+    <Fees />
+  </>
 )}
       </main>
 
