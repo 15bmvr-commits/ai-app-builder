@@ -9,9 +9,9 @@ import Fractions from './pages/Fractions'
 import Dashboard from './pages/Dashboard'
 import People from './pages/People'
 import PersonDetails from './pages/PersonDetails'
-
-import Fees from './pages/Fees'
-
+import Quotas from './pages/Quotas'
+//import Fees from './pages/Quotas'
+import CurrentAccounts from './pages/CurrentAccounts'
 
 function App() {
  // const [prompt, setPrompt] = useState('')
@@ -200,11 +200,23 @@ const [selectedPersonId, setSelectedPersonId] =
   <>
     <Header
       title="Quotas"
-      description="Gere as quotas dos teus condomínios."
+      description="Gere as quotas e pagamentos dos teus condomínios."
       connectionStatus={connectionStatus}
     />
 
-    <Fees />
+    <Quotas />
+  </>
+)}
+
+{currentPage === 'current-accounts' && (
+  <>
+    <Header
+      title="Conta Corrente"
+      description="Consulte a situação financeira das frações."
+      connectionStatus={connectionStatus}
+    />
+
+    <CurrentAccounts />
   </>
 )}
       </main>

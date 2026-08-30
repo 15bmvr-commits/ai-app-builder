@@ -18,12 +18,12 @@ function Sidebar({
     { id: 'fractions', icon: '🏠', label: 'Frações' },
     { id: 'people', icon: '👥', label: 'Condóminos' },
     { id: 'fees', icon: '💰', label: 'Quotas' },
+    { id: 'current-accounts', icon: '💳', label: 'Conta Corrente' },
     { id: 'expenses', icon: '🧾', label: 'Despesas' },
     { id: 'maintenance', icon: '🔧', label: 'Manutenção' },
     { id: 'meetings', icon: '🏛️', label: 'Assembleias' },
     { id: 'documents', icon: '📄', label: 'Documentos' },
     { id: 'settings', icon: '⚙️', label: 'Definições' },
-    
   ]
 
   const roleLabel =
@@ -31,9 +31,12 @@ function Sidebar({
       ? 'Administrador'
       : profile?.role === 'manager'
         ? 'Gestor'
-        : 'Condómino'
+        : profile?.role === 'owner'
+          ? 'Proprietário'
+          : 'Condómino'
 
-  const userName = profile?.full_name ?? 'Utilizador'
+  const userName =
+    profile?.full_name ?? 'Utilizador'
 
   return (
     <aside className="sidebar">
@@ -48,9 +51,13 @@ function Sidebar({
           <button
             key={item.id}
             className={`nav-item ${
-              currentPage === item.id ? 'active' : ''
+              currentPage === item.id
+                ? 'active'
+                : ''
             }`}
-            onClick={() => setCurrentPage(item.id)}
+            onClick={() =>
+              setCurrentPage(item.id)
+            }
           >
             <span>{item.icon}</span>
             {item.label}
@@ -63,7 +70,9 @@ function Sidebar({
         <div className="user">
 
           <div className="avatar">
-            {userName.charAt(0).toUpperCase()}
+            {userName
+              .charAt(0)
+              .toUpperCase()}
           </div>
 
           <div>

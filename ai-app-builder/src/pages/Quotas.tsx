@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
@@ -19,6 +18,16 @@ type QuotaType = {
   recurring: boolean
 }
 
+type Payment = {
+  id: string
+  quota_id: string
+  payment_date: string
+  amount: number
+  payment_method: string | null
+  reference: string | null
+  notes: string | null
+}
+
 type Quota = {
   id: string
   fraction_id: string
@@ -31,16 +40,8 @@ type Quota = {
   status: string
   fraction: Fraction
   quota_type: QuotaType | null
-}
-
-type Payment = {
-  id: string
-  quota_id: string
-  payment_date: string
-  amount: number
-  payment_method: string | null
-  reference: string | null
-  notes: string | null
+  total_paid: number
+  balance: number
 }
 
 const statusLabels: Record<string, string> = {
@@ -57,6 +58,14 @@ const statusClasses: Record<string, string> = {
   partial: 'partial',
   overdue: 'inactive',
   cancelled: 'inactive',
+}
+
+const paymentMethodLabels: Record<string, string> = {
+  transfer: 'Transferência',
+  debit: 'Débito direto',
+  cash: 'Numerário',
+  check: 'Cheque',
+  other: 'Outro',
 }
 
 const monthLabels = [
@@ -121,7 +130,9 @@ function Quotas() {
     useState<Payment[]>([])
 
   const [paymentDate, setPaymentDate] =
-    useState(new Date().toISOString().split('T')[0])
+    useState(
+      new Date().toISOString().split('T')[0]
+    )
 
   const [paymentAmount, setPaymentAmount] =
     useState('')
@@ -134,6 +145,55 @@ function Quotas() {
 
   const [paymentNotes, setPaymentNotes] =
     useState('')
+
+  // =====================================================
+  // FORMATAÇÃO
+  // =====================================================
+
+  function formatCurrency(value: number) {
+    return new Intl.NumberFormat('pt-PT', {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(value)
+  }
+
+  function formatDate(value: string) {
+    if (!value) {
+      return '—'
+    }
+
+    return new Intl.DateTimeFormat('pt-PT').format(
+      new Date(`${value}T00:00:00`)
+    )
+  }
+
+  // =====================================================
+  // CALCULAR ESTADO DA QUOTA
+  // =====================================================
+
+  function calculateStatus(
+    amount: number,
+    totalPaid: number,
+    dueDate: string
+  ) {
+    if (totalPaid >= amount) {
+      return 'paid'
+    }
+
+    if (totalPaid > 0) {
+      return 'partial'
+    }
+
+    const today = new Date()
+      .toISOString()
+      .split('T')[0]
+
+    if (dueDate < today) {
+      return 'overdue'
+    }
+
+    return 'pending'
+  }
 
   // =====================================================
   // CONDOMÍNIOS
@@ -274,26 +334,90 @@ function Quotas() {
       return
     }
 
-    const result: Quota[] = (data ?? [])
-      .filter(
-        (item: any) =>
-          item.fractions
+    const rawQuotas = (data ?? []).filter(
+      (item: any) => item.fractions
+    )
+
+    if (rawQuotas.length === 0) {
+      setQuotas([])
+      setLoading(false)
+      return
+    }
+
+    const quotaIds = rawQuotas.map(
+      (item: any) => item.id
+    )
+
+    const { data: paymentData, error: paymentError } =
+      await supabase
+        .from('payments')
+        .select('quota_id, amount')
+        .in('quota_id', quotaIds)
+
+    if (paymentError) {
+      console.error(
+        'Erro ao carregar pagamentos das quotas:',
+        paymentError
       )
-      .map((item: any) => ({
-        id: item.id,
-        fraction_id: item.fraction_id,
-        quota_type_id: item.quota_type_id,
-        reference_year: item.reference_year,
-        reference_month:
-          item.reference_month,
-        description: item.description,
-        due_date: item.due_date,
-        amount: Number(item.amount),
-        status: item.status,
-        fraction: item.fractions,
-        quota_type:
-          item.quota_types ?? null,
-      }))
+    }
+
+    const paidByQuota: Record<string, number> = {}
+
+    ;(paymentData ?? []).forEach(
+      (payment: any) => {
+        const quotaId = payment.quota_id
+
+        paidByQuota[quotaId] =
+          (paidByQuota[quotaId] ?? 0) +
+          Number(payment.amount)
+      }
+    )
+
+    const result: Quota[] = rawQuotas.map(
+      (item: any) => {
+        const quotaAmount =
+          Number(item.amount)
+
+        const totalPaid =
+          paidByQuota[item.id] ?? 0
+
+        const balance = Math.max(
+          quotaAmount - totalPaid,
+          0
+        )
+
+        const calculatedStatus =
+          item.status === 'cancelled'
+            ? 'cancelled'
+            : calculateStatus(
+                quotaAmount,
+                totalPaid,
+                item.due_date
+              )
+
+        return {
+          id: item.id,
+          fraction_id: item.fraction_id,
+          quota_type_id:
+            item.quota_type_id,
+          reference_year:
+            item.reference_year,
+          reference_month:
+            item.reference_month,
+          description:
+            item.description,
+          due_date:
+            item.due_date,
+          amount: quotaAmount,
+          status: calculatedStatus,
+          fraction: item.fractions,
+          quota_type:
+            item.quota_types ?? null,
+          total_paid: totalPaid,
+          balance,
+        }
+      }
+    )
 
     setQuotas(result)
     setLoading(false)
@@ -338,15 +462,19 @@ function Quotas() {
 
   function openNewQuotaForm() {
     setEditingId(null)
+
     setFractionId(
       fractions.length > 0
         ? fractions[0].id
         : ''
     )
+
     setQuotaTypeId('')
+
     setReferenceYear(
       new Date().getFullYear().toString()
     )
+
     setReferenceMonth('')
     setDescription('')
     setDueDate('')
@@ -357,7 +485,11 @@ function Quotas() {
 
   function editQuota(quota: Quota) {
     setEditingId(quota.id)
-    setFractionId(quota.fraction_id)
+
+    setFractionId(
+      quota.fraction_id
+    )
+
     setQuotaTypeId(
       quota.quota_type_id ?? ''
     )
@@ -375,7 +507,11 @@ function Quotas() {
     )
 
     setDueDate(quota.due_date)
-    setAmount(quota.amount.toString())
+
+    setAmount(
+      quota.amount.toString()
+    )
+
     setStatus(quota.status)
 
     setShowForm(true)
@@ -401,7 +537,9 @@ function Quotas() {
     }
 
     if (!referenceYear.trim()) {
-      alert('Indica o ano de referência.')
+      alert(
+        'Indica o ano de referência.'
+      )
       return
     }
 
@@ -413,17 +551,22 @@ function Quotas() {
     }
 
     if (!amount.trim()) {
-      alert('Indica o valor da quota.')
+      alert(
+        'Indica o valor da quota.'
+      )
       return
     }
 
-    const numericAmount = Number(amount)
+    const numericAmount =
+      Number(amount)
 
     if (
       Number.isNaN(numericAmount) ||
       numericAmount <= 0
     ) {
-      alert('Indica um valor válido.')
+      alert(
+        'Indica um valor válido.'
+      )
       return
     }
 
@@ -441,14 +584,22 @@ function Quotas() {
         description.trim() || null,
       due_date: dueDate,
       amount: numericAmount,
-      status,
+
+      // Mantemos o campo na BD.
+      // O estado apresentado será calculado
+      // com base nos pagamentos.
+      status:
+        status === 'cancelled'
+          ? 'cancelled'
+          : 'pending',
     }
 
     if (editingId) {
-      const { error } = await supabase
-        .from('quotas')
-        .update(payload)
-        .eq('id', editingId)
+      const { error } =
+        await supabase
+          .from('quotas')
+          .update(payload)
+          .eq('id', editingId)
 
       if (error) {
         console.error(
@@ -463,9 +614,10 @@ function Quotas() {
         return
       }
     } else {
-      const { error } = await supabase
-        .from('quotas')
-        .insert(payload)
+      const { error } =
+        await supabase
+          .from('quotas')
+          .insert(payload)
 
       if (error) {
         console.error(
@@ -504,12 +656,27 @@ function Quotas() {
       return
     }
 
-    const { data: quotaPayments } =
-      await supabase
-        .from('payments')
-        .select('id')
-        .eq('quota_id', quota.id)
-        .limit(1)
+    const {
+      data: quotaPayments,
+      error: paymentsError,
+    } = await supabase
+      .from('payments')
+      .select('id')
+      .eq('quota_id', quota.id)
+      .limit(1)
+
+    if (paymentsError) {
+      console.error(
+        'Erro ao verificar pagamentos:',
+        paymentsError
+      )
+
+      alert(
+        `Erro ao verificar pagamentos: ${paymentsError.message}`
+      )
+
+      return
+    }
 
     if (
       quotaPayments &&
@@ -518,13 +685,15 @@ function Quotas() {
       alert(
         'Não é possível eliminar esta quota porque existem pagamentos associados.'
       )
+
       return
     }
 
-    const { error } = await supabase
-      .from('quotas')
-      .delete()
-      .eq('id', quota.id)
+    const { error } =
+      await supabase
+        .from('quotas')
+        .delete()
+        .eq('id', quota.id)
 
     if (error) {
       console.error(
@@ -578,21 +747,35 @@ function Quotas() {
       return
     }
 
-    setPayments(data ?? [])
+    setPayments(
+      (data ?? []).map(
+        (payment: any) => ({
+          ...payment,
+          amount: Number(
+            payment.amount
+          ),
+        })
+      )
+    )
   }
 
   function openPaymentForm(
     quota: Quota
   ) {
     setSelectedQuota(quota)
+
     setPaymentDate(
       new Date()
         .toISOString()
         .split('T')[0]
     )
+
     setPaymentAmount(
-      quota.amount.toString()
+      quota.balance > 0
+        ? quota.balance.toFixed(2)
+        : ''
     )
+
     setPaymentMethod('')
     setPaymentReference('')
     setPaymentNotes('')
@@ -606,6 +789,10 @@ function Quotas() {
     setSelectedQuota(null)
     setPayments([])
   }
+
+  // =====================================================
+  // GUARDAR PAGAMENTO
+  // =====================================================
 
   async function savePayment(
     e: React.FormEvent<HTMLFormElement>
@@ -632,6 +819,28 @@ function Quotas() {
     ) {
       alert(
         'Indica um valor de pagamento válido.'
+      )
+      return
+    }
+
+    const currentBalance =
+      selectedQuota.balance
+
+    if (currentBalance <= 0) {
+      alert(
+        'Esta quota já está totalmente paga.'
+      )
+      return
+    }
+
+    if (
+      numericAmount >
+      currentBalance + 0.001
+    ) {
+      alert(
+        `O valor do pagamento não pode ser superior ao valor em dívida (${formatCurrency(
+          currentBalance
+        )}).`
       )
       return
     }
@@ -670,10 +879,6 @@ function Quotas() {
       return
     }
 
-    await updateQuotaStatus(
-      selectedQuota
-    )
-
     await loadPayments(
       selectedQuota.id
     )
@@ -682,70 +887,45 @@ function Quotas() {
       selectedCondominium
     )
 
-    setPaymentAmount('')
+    const newBalance =
+      Math.max(
+        currentBalance -
+          numericAmount,
+        0
+      )
+
+    const updatedQuota: Quota = {
+      ...selectedQuota,
+      total_paid:
+        selectedQuota.total_paid +
+        numericAmount,
+      balance: newBalance,
+      status:
+        calculateStatus(
+          selectedQuota.amount,
+          selectedQuota.total_paid +
+            numericAmount,
+          selectedQuota.due_date
+        ),
+    }
+
+    setSelectedQuota(
+      updatedQuota
+    )
+
+    setPaymentAmount(
+      newBalance > 0
+        ? newBalance.toFixed(2)
+        : ''
+    )
+
     setPaymentReference('')
     setPaymentNotes('')
   }
 
-  async function updateQuotaStatus(
-    quota: Quota
-  ) {
-    const { data, error } =
-      await supabase
-        .from('payments')
-        .select('amount')
-        .eq('quota_id', quota.id)
-
-    if (error) {
-      console.error(
-        'Erro ao calcular pagamentos:',
-        error
-      )
-      return
-    }
-
-    const totalPaid =
-      (data ?? []).reduce(
-        (
-          total: number,
-          payment: any
-        ) =>
-          total +
-          Number(payment.amount),
-        0
-      )
-
-    let newStatus = 'pending'
-
-    if (
-      totalPaid >=
-      Number(quota.amount)
-    ) {
-      newStatus = 'paid'
-    } else if (
-      totalPaid > 0
-    ) {
-      newStatus = 'partial'
-    } else {
-      const today =
-        new Date()
-          .toISOString()
-          .split('T')[0]
-
-      if (
-        quota.due_date < today
-      ) {
-        newStatus = 'overdue'
-      }
-    }
-
-    await supabase
-      .from('quotas')
-      .update({
-        status: newStatus,
-      })
-      .eq('id', quota.id)
-  }
+  // =====================================================
+  // ELIMINAR PAGAMENTO
+  // =====================================================
 
   async function deletePayment(
     payment: Payment
@@ -773,16 +953,58 @@ function Quotas() {
     }
 
     if (selectedQuota) {
-      await updateQuotaStatus(
-        selectedQuota
-      )
-
       await loadPayments(
         selectedQuota.id
       )
 
       await loadQuotas(
         selectedCondominium
+      )
+
+      const { data } =
+        await supabase
+          .from('payments')
+          .select('amount')
+          .eq(
+            'quota_id',
+            selectedQuota.id
+          )
+
+      const totalPaid =
+        (data ?? []).reduce(
+          (
+            total: number,
+            item: any
+          ) =>
+            total +
+            Number(item.amount),
+          0
+        )
+
+      const balance =
+        Math.max(
+          selectedQuota.amount -
+            totalPaid,
+          0
+        )
+
+      setSelectedQuota({
+        ...selectedQuota,
+        total_paid:
+          totalPaid,
+        balance,
+        status:
+          calculateStatus(
+            selectedQuota.amount,
+            totalPaid,
+            selectedQuota.due_date
+          ),
+      })
+
+      setPaymentAmount(
+        balance > 0
+          ? balance.toFixed(2)
+          : ''
       )
     }
   }
@@ -803,7 +1025,8 @@ function Quotas() {
 
       if (
         statusFilter &&
-        quota.status !== statusFilter
+        quota.status !==
+          statusFilter
       ) {
         return false
       }
@@ -828,7 +1051,16 @@ function Quotas() {
   const totalAmount =
     filteredQuotas.reduce(
       (total, quota) =>
-        total + Number(quota.amount),
+        total +
+        Number(quota.amount),
+      0
+    )
+
+  const totalPaidAmount =
+    filteredQuotas.reduce(
+      (total, quota) =>
+        total +
+        Number(quota.total_paid),
       0
     )
 
@@ -836,58 +1068,31 @@ function Quotas() {
     filteredQuotas
       .filter(
         (quota) =>
-          quota.status !== 'paid' &&
-          quota.status !== 'cancelled'
+          quota.status !==
+            'paid' &&
+          quota.status !==
+            'cancelled'
       )
       .reduce(
         (total, quota) =>
-          total + Number(quota.amount),
+          total +
+          Number(quota.balance),
         0
       )
 
-  const paidAmount =
+  const overdueAmount =
     filteredQuotas
       .filter(
         (quota) =>
-          quota.status === 'paid'
+          quota.status ===
+          'overdue'
       )
       .reduce(
         (total, quota) =>
-          total + Number(quota.amount),
+          total +
+          Number(quota.balance),
         0
       )
-
-  // =====================================================
-  // FORMATAÇÃO
-  // =====================================================
-
-  function formatCurrency(
-    value: number
-  ) {
-    return new Intl.NumberFormat(
-      'pt-PT',
-      {
-        style: 'currency',
-        currency: 'EUR',
-      }
-    ).format(value)
-  }
-
-  function formatDate(
-    value: string
-  ) {
-    if (!value) {
-      return '—'
-    }
-
-    return new Intl.DateTimeFormat(
-      'pt-PT'
-    ).format(
-      new Date(
-        `${value}T00:00:00`
-      )
-    )
-  }
 
   // =====================================================
   // INTERFACE
@@ -1031,7 +1236,7 @@ function Quotas() {
         style={{
           display: 'grid',
           gridTemplateColumns:
-            'repeat(3, 1fr)',
+            'repeat(4, 1fr)',
           gap: '16px',
           marginBottom: '24px',
         }}
@@ -1051,12 +1256,12 @@ function Quotas() {
 
         <div className="form-card">
           <small>
-            Pagas
+            Total recebido
           </small>
 
           <h3>
             {formatCurrency(
-              paidAmount
+              totalPaidAmount
             )}
           </h3>
         </div>
@@ -1073,9 +1278,21 @@ function Quotas() {
           </h3>
         </div>
 
+        <div className="form-card">
+          <small>
+            Em atraso
+          </small>
+
+          <h3>
+            {formatCurrency(
+              overdueAmount
+            )}
+          </h3>
+        </div>
+
       </div>
 
-      {/* FORMULÁRIO */}
+      {/* FORMULÁRIO QUOTA */}
 
       {showForm && (
 
@@ -1283,18 +1500,6 @@ function Quotas() {
                     Pendente
                   </option>
 
-                  <option value="paid">
-                    Pago
-                  </option>
-
-                  <option value="partial">
-                    Pago parcialmente
-                  </option>
-
-                  <option value="overdue">
-                    Em atraso
-                  </option>
-
                   <option value="cancelled">
                     Anulado
                   </option>
@@ -1392,6 +1597,8 @@ function Quotas() {
                 <th>Referência</th>
                 <th>Vencimento</th>
                 <th>Valor</th>
+                <th>Pago</th>
+                <th>Em dívida</th>
                 <th>Estado</th>
                 <th></th>
               </tr>
@@ -1446,9 +1653,25 @@ function Quotas() {
                       <strong>
                         {
                           formatCurrency(
-                            Number(
-                              quota.amount
-                            )
+                            quota.amount
+                          )
+                        }
+                      </strong>
+                    </td>
+
+                    <td>
+                      {
+                        formatCurrency(
+                          quota.total_paid
+                        )
+                      }
+                    </td>
+
+                    <td>
+                      <strong>
+                        {
+                          formatCurrency(
+                            quota.balance
                           )
                         }
                       </strong>
@@ -1551,8 +1774,7 @@ function Quotas() {
               <div>
 
                 <h3>
-                  Pagamentos —
-                  Fração{' '}
+                  Pagamentos — Fração{' '}
                   {
                     selectedQuota
                       .fraction
@@ -1564,9 +1786,7 @@ function Quotas() {
                   Quota:{' '}
                   {
                     formatCurrency(
-                      Number(
-                        selectedQuota.amount
-                      )
+                      selectedQuota.amount
                     )
                   }
                 </p>
@@ -1585,146 +1805,237 @@ function Quotas() {
 
             </div>
 
-            <form
-              onSubmit={
-                savePayment
-              }
+            {/* RESUMO DA QUOTA */}
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns:
+                  'repeat(3, 1fr)',
+                gap: '16px',
+                margin:
+                  '20px 0',
+              }}
             >
 
-              <div className="form-grid">
+              <div>
+                <small>
+                  Valor da quota
+                </small>
 
-                <div>
-                  <label>
-                    Data do pagamento *
-                  </label>
+                <h3>
+                  {
+                    formatCurrency(
+                      selectedQuota.amount
+                    )
+                  }
+                </h3>
+              </div>
 
-                  <input
-                    type="date"
-                    value={
-                      paymentDate
-                    }
-                    onChange={(e) =>
-                      setPaymentDate(
-                        e.target.value
-                      )
-                    }
-                  />
-                </div>
+              <div>
+                <small>
+                  Total pago
+                </small>
 
-                <div>
-                  <label>
-                    Valor pago *
-                  </label>
+                <h3>
+                  {
+                    formatCurrency(
+                      selectedQuota.total_paid
+                    )
+                  }
+                </h3>
+              </div>
 
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={
-                      paymentAmount
-                    }
-                    onChange={(e) =>
-                      setPaymentAmount(
-                        e.target.value
-                      )
-                    }
-                  />
-                </div>
+              <div>
+                <small>
+                  Em dívida
+                </small>
 
-                <div>
-                  <label>
-                    Método de pagamento
-                  </label>
+                <h3>
+                  {
+                    formatCurrency(
+                      selectedQuota.balance
+                    )
+                  }
+                </h3>
+              </div>
 
-                  <select
-                    value={
-                      paymentMethod
-                    }
-                    onChange={(e) =>
-                      setPaymentMethod(
-                        e.target.value
-                      )
-                    }
+            </div>
+
+            {selectedQuota.balance >
+              0 ? (
+
+              <form
+                onSubmit={
+                  savePayment
+                }
+              >
+
+                <div className="form-grid">
+
+                  <div>
+                    <label>
+                      Data do pagamento *
+                    </label>
+
+                    <input
+                      type="date"
+                      value={
+                        paymentDate
+                      }
+                      onChange={(e) =>
+                        setPaymentDate(
+                          e.target.value
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label>
+                      Valor pago *
+                    </label>
+
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      max={
+                        selectedQuota.balance
+                      }
+                      value={
+                        paymentAmount
+                      }
+                      onChange={(e) =>
+                        setPaymentAmount(
+                          e.target.value
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label>
+                      Método de pagamento
+                    </label>
+
+                    <select
+                      value={
+                        paymentMethod
+                      }
+                      onChange={(e) =>
+                        setPaymentMethod(
+                          e.target.value
+                        )
+                      }
+                    >
+                      <option value="">
+                        Selecionar
+                      </option>
+
+                      <option value="transfer">
+                        Transferência
+                      </option>
+
+                      <option value="debit">
+                        Débito direto
+                      </option>
+
+                      <option value="cash">
+                        Numerário
+                      </option>
+
+                      <option value="check">
+                        Cheque
+                      </option>
+
+                      <option value="other">
+                        Outro
+                      </option>
+
+                    </select>
+                  </div>
+
+                  <div>
+                    <label>
+                      Referência
+                    </label>
+
+                    <input
+                      value={
+                        paymentReference
+                      }
+                      onChange={(e) =>
+                        setPaymentReference(
+                          e.target.value
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div
+                    style={{
+                      gridColumn:
+                        '1 / -1',
+                    }}
                   >
-                    <option value="">
-                      Selecionar
-                    </option>
+                    <label>
+                      Observações
+                    </label>
 
-                    <option value="transfer">
-                      Transferência
-                    </option>
+                    <input
+                      value={
+                        paymentNotes
+                      }
+                      onChange={(e) =>
+                        setPaymentNotes(
+                          e.target.value
+                        )
+                      }
+                    />
+                  </div>
 
-                    <option value="debit">
-                      Débito direto
-                    </option>
-
-                    <option value="cash">
-                      Numerário
-                    </option>
-
-                    <option value="check">
-                      Cheque
-                    </option>
-
-                    <option value="other">
-                      Outro
-                    </option>
-                  </select>
                 </div>
 
-                <div>
-                  <label>
-                    Referência
-                  </label>
+                <div className="form-actions">
 
-                  <input
-                    value={
-                      paymentReference
-                    }
-                    onChange={(e) =>
-                      setPaymentReference(
-                        e.target.value
-                      )
-                    }
-                  />
+                  <button
+                    type="submit"
+                    className="create-button"
+                  >
+                    + Registar pagamento
+                  </button>
+
                 </div>
 
-                <div
-                  style={{
-                    gridColumn:
-                      '1 / -1',
-                  }}
-                >
-                  <label>
-                    Observações
-                  </label>
+              </form>
 
-                  <input
-                    value={
-                      paymentNotes
-                    }
-                    onChange={(e) =>
-                      setPaymentNotes(
-                        e.target.value
-                      )
-                    }
-                  />
+            ) : (
+
+              <div
+                className="empty-state"
+                style={{
+                  margin:
+                    '20px 0',
+                }}
+              >
+                <div className="empty-icon">
+                  ✅
                 </div>
 
+                <h3>
+                  Quota totalmente paga
+                </h3>
+
+                <p>
+                  Não existe qualquer
+                  valor em dívida.
+                </p>
               </div>
 
-              <div className="form-actions">
+            )}
 
-                <button
-                  type="submit"
-                  className="create-button"
-                >
-                  + Registar pagamento
-                </button>
-
-              </div>
-
-            </form>
+            {/* HISTÓRICO */}
 
             <div
               style={{
@@ -1783,9 +2094,7 @@ function Quotas() {
                             <strong>
                               {
                                 formatCurrency(
-                                  Number(
-                                    payment.amount
-                                  )
+                                  payment.amount
                                 )
                               }
                             </strong>
@@ -1793,8 +2102,12 @@ function Quotas() {
 
                           <td>
                             {
-                              payment.payment_method ??
-                              '—'
+                              payment.payment_method
+                                ? paymentMethodLabels[
+                                    payment.payment_method
+                                  ] ??
+                                  payment.payment_method
+                                : '—'
                             }
                           </td>
 
