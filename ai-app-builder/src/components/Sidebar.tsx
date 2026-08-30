@@ -13,18 +13,19 @@ function Sidebar({
   profile,
 }: SidebarProps) {
   const menuItems = [
-    { id: 'dashboard', icon: '🏠', label: 'Dashboard' },
-    { id: 'condominiums', icon: '🏢', label: 'Condomínios' },
-    { id: 'fractions', icon: '🏠', label: 'Frações' },
-    { id: 'people', icon: '👥', label: 'Condóminos' },
-    { id: 'fees', icon: '💰', label: 'Quotas' },
-    { id: 'current-accounts', icon: '💳', label: 'Conta Corrente' },
-    { id: 'expenses', icon: '🧾', label: 'Despesas' },
-    { id: 'maintenance', icon: '🔧', label: 'Manutenção' },
-    { id: 'meetings', icon: '🏛️', label: 'Assembleias' },
-    { id: 'documents', icon: '📄', label: 'Documentos' },
-    { id: 'settings', icon: '⚙️', label: 'Definições' },
-  ]
+  { id: 'dashboard', icon: '🏠', label: 'Dashboard' },
+  { id: 'condominiums', icon: '🏢', label: 'Condomínios' },
+  { id: 'owners', icon: '👤', label: 'Proprietários' },
+  { id: 'fractions', icon: '🏠', label: 'Frações' },
+  { id: 'people', icon: '👥', label: 'Condóminos' },
+  { id: 'fees', icon: '💰', label: 'Quotas' },
+  { id: 'current-accounts', icon: '💳', label: 'Conta Corrente' },
+  { id: 'expenses', icon: '🧾', label: 'Despesas' },
+  { id: 'maintenance', icon: '🔧', label: 'Manutenção' },
+  { id: 'meetings', icon: '🏛️', label: 'Assembleias' },
+  { id: 'documents', icon: '📄', label: 'Documentos' },
+  { id: 'settings', icon: '⚙️', label: 'Definições' },
+]
 
   const roleLabel =
     profile?.role === 'admin'

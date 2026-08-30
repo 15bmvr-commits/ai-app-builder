@@ -12,7 +12,7 @@ import PersonDetails from './pages/PersonDetails'
 import Quotas from './pages/Quotas'
 //import Fees from './pages/Quotas'
 import CurrentAccounts from './pages/CurrentAccounts'
-
+import Owners from './pages/Owners'
 function App() {
  // const [prompt, setPrompt] = useState('')
   const [connectionStatus, setConnectionStatus] =
@@ -169,6 +169,18 @@ const [selectedPersonId, setSelectedPersonId] =
             <Condominiums />
           </>
         )}
+
+    {currentPage === 'owners' && (
+  <>
+    <Header
+      title="Proprietários"
+      description="Gere os proprietários das frações dos teus condomínios."
+      connectionStatus={connectionStatus}
+    />
+
+    <Owners />
+  </>
+)}    
 {currentPage === 'fractions' && (
   <>
     <Header
