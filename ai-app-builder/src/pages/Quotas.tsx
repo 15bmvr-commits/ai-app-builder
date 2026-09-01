@@ -146,9 +146,39 @@ function Quotas() {
   const [paymentNotes, setPaymentNotes] =
     useState('')
 
-  // =====================================================
-  // FORMATAÇÃO
-  // =====================================================
+  // ============================================================
+  // GERAÇÃO AUTOMÁTICA DE QUOTAS
+  // ============================================================
+
+  const [showGenerateForm, setShowGenerateForm] =
+    useState(false)
+
+  const [generateYear, setGenerateYear] =
+    useState(new Date().getFullYear().toString())
+
+  const [generateQuotaTypeId, setGenerateQuotaTypeId] =
+    useState('')
+
+  const [generateAmount, setGenerateAmount] =
+    useState('')
+
+  const [generateDueDay, setGenerateDueDay] =
+    useState('10')
+
+  const [generateDescription, setGenerateDescription] =
+    useState('')
+
+  const [generateAllFractions, setGenerateAllFractions] =
+    useState(true)
+
+  const [generateFractionIds, setGenerateFractionIds] =
+    useState<string[]>([])
+
+  const [generateMonths, setGenerateMonths] =
+    useState<number[]>([])
+
+  const [generating, setGenerating] =
+    useState(false)
 
   function formatCurrency(value: number) {
     return new Intl.NumberFormat('pt-PT', {
@@ -166,10 +196,6 @@ function Quotas() {
       new Date(`${value}T00:00:00`)
     )
   }
-
-  // =====================================================
-  // CALCULAR ESTADO DA QUOTA
-  // =====================================================
 
   function calculateStatus(
     amount: number,
@@ -194,10 +220,6 @@ function Quotas() {
 
     return 'pending'
   }
-
-  // =====================================================
-  // CONDOMÍNIOS
-  // =====================================================
 
   async function loadCondominiums() {
     const { data, error } = await supabase
@@ -226,10 +248,6 @@ function Quotas() {
     }
   }
 
-  // =====================================================
-  // FRAÇÕES
-  // =====================================================
-
   async function loadFractions(
     condominiumId: string
   ) {
@@ -253,38 +271,37 @@ function Quotas() {
     setFractions(data ?? [])
   }
 
-  // =====================================================
-  // TIPOS DE QUOTA
-  // =====================================================
-
   async function loadQuotaTypes(
-    condominiumId: string
-  ) {
-    const { data, error } = await supabase
-      .from('quota_types')
-      .select(
-        'id, name, description, recurring'
-      )
-      .eq('condominium_id', condominiumId)
-      .eq('active', true)
-      .order('name')
+  condominiumId: string
+) {
+  console.log(
+    'A carregar tipos de quota para condomínio:',
+    condominiumId
+  )
 
-    if (error) {
-      console.error(
-        'Erro ao carregar tipos de quota:',
-        error
-      )
+  const { data, error } = await supabase
+    .from('quota_types')
+    .select(
+      'id, name, description, recurring, condominium_id, active'
+    )
+    .eq('condominium_id', condominiumId)
+    .order('name')
 
-      setQuotaTypes([])
-      return
-    }
+  console.log('Tipos de quota recebidos:', data)
+  console.log('Erro tipos de quota:', error)
 
-    setQuotaTypes(data ?? [])
+  if (error) {
+    console.error(
+      'Erro ao carregar tipos de quota:',
+      error
+    )
+
+    setQuotaTypes([])
+    return
   }
 
-  // =====================================================
-  // QUOTAS
-  // =====================================================
+  setQuotaTypes(data ?? [])
+}
 
   async function loadQuotas(
     condominiumId: string
@@ -423,10 +440,6 @@ function Quotas() {
     setLoading(false)
   }
 
-  // =====================================================
-  // INITIAL LOAD
-  // =====================================================
-
   useEffect(() => {
     loadCondominiums()
   }, [])
@@ -441,9 +454,9 @@ function Quotas() {
     loadQuotas(selectedCondominium)
   }, [selectedCondominium])
 
-  // =====================================================
-  // FORM
-  // =====================================================
+  // ============================================================
+  // FORMULÁRIO DE QUOTA MANUAL
+  // ============================================================
 
   function resetForm() {
     setEditingId(null)
@@ -481,6 +494,8 @@ function Quotas() {
     setAmount('')
     setStatus('pending')
     setShowForm(true)
+
+    setShowGenerateForm(false)
   }
 
   function editQuota(quota: Quota) {
@@ -515,11 +530,8 @@ function Quotas() {
     setStatus(quota.status)
 
     setShowForm(true)
+    setShowGenerateForm(false)
   }
-
-  // =====================================================
-  // GUARDAR QUOTA
-  // =====================================================
 
   async function saveQuota(
     e: React.FormEvent<HTMLFormElement>
@@ -584,10 +596,6 @@ function Quotas() {
         description.trim() || null,
       due_date: dueDate,
       amount: numericAmount,
-
-      // Mantemos o campo na BD.
-      // O estado apresentado será calculado
-      // com base nos pagamentos.
       status:
         status === 'cancelled'
           ? 'cancelled'
@@ -640,9 +648,396 @@ function Quotas() {
     )
   }
 
-  // =====================================================
+  // ============================================================
+  // GERAR QUOTAS AUTOMATICAMENTE
+  // ============================================================
+
+  function openGenerateForm() {
+    setShowGenerateForm(true)
+    setShowForm(false)
+    setEditingId(null)
+
+    setGenerateYear(
+      new Date().getFullYear().toString()
+    )
+
+    setGenerateQuotaTypeId(
+      quotaTypes.length > 0
+        ? quotaTypes[0].id
+        : ''
+    )
+
+    setGenerateAmount('')
+    setGenerateDueDay('10')
+    setGenerateDescription('')
+
+    setGenerateAllFractions(true)
+    setGenerateFractionIds([])
+
+    setGenerateMonths([
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+    ])
+  }
+
+  function closeGenerateForm() {
+    setShowGenerateForm(false)
+  }
+
+  function toggleGenerateMonth(
+    month: number
+  ) {
+    setGenerateMonths(
+      (current) =>
+        current.includes(month)
+          ? current.filter(
+              (item) =>
+                item !== month
+            )
+          : [...current, month].sort(
+              (a, b) => a - b
+            )
+    )
+  }
+
+  function toggleGenerateFraction(
+    fractionId: string
+  ) {
+    setGenerateFractionIds(
+      (current) =>
+        current.includes(fractionId)
+          ? current.filter(
+              (item) =>
+                item !== fractionId
+            )
+          : [...current, fractionId]
+    )
+  }
+
+  function selectAllGenerateMonths() {
+    setGenerateMonths([
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+    ])
+  }
+
+  function clearGenerateMonths() {
+    setGenerateMonths([])
+  }
+
+  function selectAllGenerateFractions() {
+    setGenerateAllFractions(true)
+    setGenerateFractionIds([])
+  }
+
+  function getDueDate(
+    year: number,
+    month: number,
+    day: number
+  ) {
+    // Último dia do mês.
+    const lastDay =
+      new Date(
+        year,
+        month,
+        0
+      ).getDate()
+
+    const validDay =
+      Math.min(
+        Math.max(day, 1),
+        lastDay
+      )
+
+    return `${year}-${String(month).padStart(
+      2,
+      '0'
+    )}-${String(validDay).padStart(
+      2,
+      '0'
+    )}`
+  }
+
+  async function generateQuotas(
+    e: React.FormEvent<HTMLFormElement>
+  ) {
+    e.preventDefault()
+
+    if (!selectedCondominium) {
+      alert(
+        'Seleciona um condomínio.'
+      )
+      return
+    }
+
+    if (!generateQuotaTypeId) {
+      alert(
+        'Seleciona o tipo de quota.'
+      )
+      return
+    }
+
+    const numericYear =
+      Number(generateYear)
+
+    if (
+      Number.isNaN(numericYear) ||
+      numericYear < 2000 ||
+      numericYear > 2100
+    ) {
+      alert(
+        'Indica um ano válido.'
+      )
+      return
+    }
+
+    const numericAmount =
+      Number(generateAmount)
+
+    if (
+      Number.isNaN(numericAmount) ||
+      numericAmount <= 0
+    ) {
+      alert(
+        'Indica um valor válido para a quota.'
+      )
+      return
+    }
+
+    const numericDueDay =
+      Number(generateDueDay)
+
+    if (
+      Number.isNaN(numericDueDay) ||
+      numericDueDay < 1 ||
+      numericDueDay > 31
+    ) {
+      alert(
+        'O dia de vencimento deve estar entre 1 e 31.'
+      )
+      return
+    }
+
+    if (generateMonths.length === 0) {
+      alert(
+        'Seleciona pelo menos um mês.'
+      )
+      return
+    }
+
+    const selectedFractions =
+      generateAllFractions
+        ? fractions
+        : fractions.filter(
+            (fraction) =>
+              generateFractionIds.includes(
+                fraction.id
+              )
+          )
+
+    if (selectedFractions.length === 0) {
+      alert(
+        'Seleciona pelo menos uma fração.'
+      )
+      return
+    }
+
+    setGenerating(true)
+
+    try {
+      /*
+       * Carregar as quotas existentes para este condomínio/ano.
+       * Usamos as frações para garantir que apenas analisamos
+       * quotas deste condomínio.
+       */
+      const fractionIds =
+        fractions.map(
+          (fraction) => fraction.id
+        )
+
+      const { data: existingQuotas, error: existingError } =
+        await supabase
+          .from('quotas')
+          .select(`
+            id,
+            fraction_id,
+            quota_type_id,
+            reference_year,
+            reference_month
+          `)
+          .in(
+            'fraction_id',
+            fractionIds
+          )
+          .eq(
+            'reference_year',
+            numericYear
+          )
+
+      if (existingError) {
+        console.error(
+          'Erro ao verificar quotas existentes:',
+          existingError
+        )
+
+        alert(
+          `Erro ao verificar quotas existentes: ${existingError.message}`
+        )
+
+        return
+      }
+
+      const existingKeys =
+        new Set<string>()
+
+      ;(existingQuotas ?? []).forEach(
+        (quota: any) => {
+          const key = [
+            quota.fraction_id,
+            quota.quota_type_id ?? 'null',
+            quota.reference_year,
+            quota.reference_month ?? 'null',
+          ].join('|')
+
+          existingKeys.add(key)
+        }
+      )
+
+      const rowsToInsert: Array<{
+        fraction_id: string
+        quota_type_id: string
+        reference_year: number
+        reference_month: number
+        description: string | null
+        due_date: string
+        amount: number
+        status: string
+      }> = []
+
+      let skipped = 0
+
+      /*
+       * Construir todas as quotas a criar.
+       * Antes de adicionar cada uma, verificamos se já existe.
+       */
+      for (const fraction of selectedFractions) {
+        for (const month of generateMonths) {
+          const key = [
+            fraction.id,
+            generateQuotaTypeId,
+            numericYear,
+            month,
+          ].join('|')
+
+          if (existingKeys.has(key)) {
+            skipped++
+            continue
+          }
+
+          const dueDate =
+            getDueDate(
+              numericYear,
+              month,
+              numericDueDay
+            )
+
+          rowsToInsert.push({
+            fraction_id:
+              fraction.id,
+            quota_type_id:
+              generateQuotaTypeId,
+            reference_year:
+              numericYear,
+            reference_month:
+              month,
+            description:
+              generateDescription.trim() ||
+              null,
+            due_date:
+              dueDate,
+            amount:
+              numericAmount,
+            status:
+              'pending',
+          })
+
+          /*
+           * Adicionamos também ao Set para impedir
+           * duplicados dentro da própria operação.
+           */
+          existingKeys.add(key)
+        }
+      }
+
+      if (rowsToInsert.length === 0) {
+        alert(
+          `Não foram criadas novas quotas.\n\n${skipped} quota(s) já existiam.`
+        )
+
+        return
+      }
+
+      /*
+       * Inserção em lote.
+       */
+      const { error: insertError } =
+        await supabase
+          .from('quotas')
+          .insert(rowsToInsert)
+
+      if (insertError) {
+        console.error(
+          'Erro ao gerar quotas:',
+          insertError
+        )
+
+        alert(
+          `Erro ao gerar quotas: ${insertError.message}`
+        )
+
+        return
+      }
+
+      const message =
+        skipped > 0
+          ? `Foram criadas ${rowsToInsert.length} quota(s).\n\n${skipped} quota(s) já existiam e foram ignoradas.`
+          : `Foram criadas ${rowsToInsert.length} quota(s) com sucesso.`
+
+      alert(message)
+
+      setShowGenerateForm(false)
+
+      await loadQuotas(
+        selectedCondominium
+      )
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  // ============================================================
   // ELIMINAR QUOTA
-  // =====================================================
+  // ============================================================
 
   async function deleteQuota(
     quota: Quota
@@ -713,9 +1108,9 @@ function Quotas() {
     )
   }
 
-  // =====================================================
+  // ============================================================
   // PAGAMENTOS
-  // =====================================================
+  // ============================================================
 
   async function loadPayments(
     quotaId: string
@@ -789,10 +1184,6 @@ function Quotas() {
     setSelectedQuota(null)
     setPayments([])
   }
-
-  // =====================================================
-  // GUARDAR PAGAMENTO
-  // =====================================================
 
   async function savePayment(
     e: React.FormEvent<HTMLFormElement>
@@ -923,10 +1314,6 @@ function Quotas() {
     setPaymentNotes('')
   }
 
-  // =====================================================
-  // ELIMINAR PAGAMENTO
-  // =====================================================
-
   async function deletePayment(
     payment: Payment
   ) {
@@ -1009,9 +1396,9 @@ function Quotas() {
     }
   }
 
-  // =====================================================
-  // FILTRO
-  // =====================================================
+  // ============================================================
+  // FILTROS E TOTAIS
+  // ============================================================
 
   const filteredQuotas =
     quotas.filter((quota) => {
@@ -1043,10 +1430,6 @@ function Quotas() {
         search.toLowerCase()
       )
     })
-
-  // =====================================================
-  // TOTAIS
-  // =====================================================
 
   const totalAmount =
     filteredQuotas.reduce(
@@ -1094,9 +1477,9 @@ function Quotas() {
         0
       )
 
-  // =====================================================
-  // INTERFACE
-  // =====================================================
+  // ============================================================
+  // RENDER
+  // ============================================================
 
   return (
     <section className="page">
@@ -1113,18 +1496,35 @@ function Quotas() {
           </p>
         </div>
 
-        <button
-          className="secondary-button"
-          onClick={
-            openNewQuotaForm
-          }
+        <div
+          style={{
+            display: 'flex',
+            gap: '10px',
+            alignItems: 'center',
+          }}
         >
-          + Nova quota
-        </button>
+
+          <button
+            className="secondary-button"
+            onClick={
+              openGenerateForm
+            }
+          >
+            ⚡ Gerar quotas
+          </button>
+
+          <button
+            className="secondary-button"
+            onClick={
+              openNewQuotaForm
+            }
+          >
+            + Nova quota
+          </button>
+
+        </div>
 
       </div>
-
-      {/* FILTROS */}
 
       <div className="filter-bar">
 
@@ -1230,8 +1630,6 @@ function Quotas() {
 
       </div>
 
-      {/* RESUMO */}
-
       <div
         style={{
           display: 'grid',
@@ -1292,7 +1690,541 @@ function Quotas() {
 
       </div>
 
-      {/* FORMULÁRIO QUOTA */}
+      {/* ======================================================
+          FORMULÁRIO GERAR QUOTAS
+          ====================================================== */}
+
+      {showGenerateForm && (
+
+        <div
+          className="form-card"
+          style={{
+            marginBottom: '24px',
+          }}
+        >
+
+          <h3>
+            ⚡ Gerar quotas automaticamente
+          </h3>
+
+          <p
+            style={{
+              marginBottom: '20px',
+            }}
+          >
+            Cria quotas para várias frações e meses
+            de uma só vez. As quotas que já existirem
+            serão ignoradas.
+          </p>
+
+          <form
+            onSubmit={
+              generateQuotas
+            }
+          >
+
+            <div className="form-grid">
+
+              <div>
+                <label>
+                  Ano *
+                </label>
+
+                <input
+                  type="number"
+                  min="2000"
+                  max="2100"
+                  value={
+                    generateYear
+                  }
+                  onChange={(e) =>
+                    setGenerateYear(
+                      e.target.value
+                    )
+                  }
+                />
+              </div>
+
+              <div>
+                <label>
+                  Tipo de quota *
+                </label>
+
+                <select
+                  value={
+                    generateQuotaTypeId
+                  }
+                  onChange={(e) =>
+                    setGenerateQuotaTypeId(
+                      e.target.value
+                    )
+                  }
+                >
+                  <option value="">
+                    Selecionar tipo
+                  </option>
+
+                  {quotaTypes.map(
+                    (type) => (
+                      <option
+                        key={type.id}
+                        value={type.id}
+                      >
+                        {type.name}
+                        {type.recurring
+                          ? ' — Recorrente'
+                          : ''}
+                      </option>
+                    )
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label>
+                  Valor da quota (€) *
+                </label>
+
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={
+                    generateAmount
+                  }
+                  onChange={(e) =>
+                    setGenerateAmount(
+                      e.target.value
+                    )
+                  }
+                  placeholder="Ex.: 41.00"
+                />
+              </div>
+
+              <div>
+                <label>
+                  Dia de vencimento *
+                </label>
+
+                <input
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={
+                    generateDueDay
+                  }
+                  onChange={(e) =>
+                    setGenerateDueDay(
+                      e.target.value
+                    )
+                  }
+                  placeholder="Ex.: 10"
+                />
+
+                <small
+                  style={{
+                    display: 'block',
+                    marginTop: '5px',
+                  }}
+                >
+                  Se o mês não tiver esse dia,
+                  será utilizado o último dia do mês.
+                </small>
+              </div>
+
+              <div
+                style={{
+                  gridColumn:
+                    '1 / -1',
+                }}
+              >
+                <label>
+                  Descrição
+                </label>
+
+                <input
+                  value={
+                    generateDescription
+                  }
+                  onChange={(e) =>
+                    setGenerateDescription(
+                      e.target.value
+                    )
+                  }
+                  placeholder="Ex.: Quota ordinária"
+                />
+              </div>
+
+            </div>
+
+            {/* MESES */}
+
+            <div
+              style={{
+                marginTop: '24px',
+              }}
+            >
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent:
+                    'space-between',
+                  alignItems:
+                    'center',
+                  marginBottom:
+                    '10px',
+                }}
+              >
+
+                <label>
+                  Meses *
+                </label>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: '8px',
+                  }}
+                >
+
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={
+                      selectAllGenerateMonths
+                    }
+                  >
+                    Todos
+                  </button>
+
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={
+                      clearGenerateMonths
+                    }
+                  >
+                    Limpar
+                  </button>
+
+                </div>
+
+              </div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns:
+                    'repeat(4, 1fr)',
+                  gap: '8px',
+                }}
+              >
+
+                {monthLabels
+                  .slice(1)
+                  .map(
+                    (
+                      month,
+                      index
+                    ) => {
+
+                      const monthNumber =
+                        index + 1
+
+                      const checked =
+                        generateMonths.includes(
+                          monthNumber
+                        )
+
+                      return (
+                        <label
+                          key={
+                            monthNumber
+                          }
+                          style={{
+                            display:
+                              'flex',
+                            alignItems:
+                              'center',
+                            gap: '8px',
+                            padding:
+                              '8px',
+                            border:
+                              '1px solid #ddd',
+                            borderRadius:
+                              '6px',
+                            cursor:
+                              'pointer',
+                          }}
+                        >
+
+                          <input
+                            type="checkbox"
+                            checked={
+                              checked
+                            }
+                            onChange={() =>
+                              toggleGenerateMonth(
+                                monthNumber
+                              )
+                            }
+                          />
+
+                          {month}
+
+                        </label>
+                      )
+                    }
+                  )}
+
+              </div>
+
+            </div>
+
+            {/* FRAÇÕES */}
+
+            <div
+              style={{
+                marginTop: '24px',
+              }}
+            >
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent:
+                    'space-between',
+                  alignItems:
+                    'center',
+                  marginBottom:
+                    '10px',
+                }}
+              >
+
+                <label>
+                  Frações *
+                </label>
+
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={
+                    selectAllGenerateFractions
+                  }
+                >
+                  Todas as frações
+                </button>
+
+              </div>
+
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems:
+                    'center',
+                  gap: '8px',
+                  marginBottom:
+                    '12px',
+                  cursor:
+                    'pointer',
+                }}
+              >
+
+                <input
+                  type="checkbox"
+                  checked={
+                    generateAllFractions
+                  }
+                  onChange={(e) => {
+                    setGenerateAllFractions(
+                      e.target.checked
+                    )
+
+                    if (
+                      e.target.checked
+                    ) {
+                      setGenerateFractionIds(
+                        []
+                      )
+                    }
+                  }}
+                />
+
+                Gerar para todas as frações
+              </label>
+
+              {!generateAllFractions && (
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns:
+                      'repeat(4, 1fr)',
+                    gap: '8px',
+                  }}
+                >
+
+                  {fractions.map(
+                    (fraction) => {
+
+                      const checked =
+                        generateFractionIds.includes(
+                          fraction.id
+                        )
+
+                      return (
+                        <label
+                          key={
+                            fraction.id
+                          }
+                          style={{
+                            display:
+                              'flex',
+                            alignItems:
+                              'center',
+                            gap: '8px',
+                            padding:
+                              '8px',
+                            border:
+                              '1px solid #ddd',
+                            borderRadius:
+                              '6px',
+                            cursor:
+                              'pointer',
+                          }}
+                        >
+
+                          <input
+                            type="checkbox"
+                            checked={
+                              checked
+                            }
+                            onChange={() =>
+                              toggleGenerateFraction(
+                                fraction.id
+                              )
+                            }
+                          />
+
+                          Fração{' '}
+                          {
+                            fraction.fraction_code
+                          }
+
+                        </label>
+                      )
+                    }
+                  )}
+
+                </div>
+
+              )}
+
+            </div>
+
+            {/* RESUMO */}
+
+            <div
+              style={{
+                marginTop: '24px',
+                padding: '16px',
+                background:
+                  '#f5f7fa',
+                borderRadius:
+                  '8px',
+              }}
+            >
+
+              <strong>
+                Resumo
+              </strong>
+
+              <p
+                style={{
+                  margin:
+                    '8px 0 0',
+                }}
+              >
+                {generateMonths.length}{' '}
+                mês(es) ×{' '}
+                {generateAllFractions
+                  ? fractions.length
+                  : generateFractionIds.length}{' '}
+                fração(ões) ×{' '}
+                {generateAmount
+                  ? formatCurrency(
+                      Number(
+                        generateAmount
+                      )
+                    )
+                  : '—'}
+              </p>
+
+              <p
+                style={{
+                  margin:
+                    '4px 0 0',
+                }}
+              >
+                Total potencial:{' '}
+                <strong>
+                  {generateAmount &&
+                  generateMonths.length >
+                    0
+                    ? formatCurrency(
+                        Number(
+                          generateAmount
+                        ) *
+                          generateMonths.length *
+                          (generateAllFractions
+                            ? fractions.length
+                            : generateFractionIds.length)
+                      )
+                    : '—'}
+                </strong>
+              </p>
+
+            </div>
+
+            <div className="form-actions">
+
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={
+                  closeGenerateForm
+                }
+                disabled={
+                  generating
+                }
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="submit"
+                className="create-button"
+                disabled={
+                  generating
+                }
+              >
+                {generating
+                  ? 'A gerar quotas...'
+                  : '⚡ Gerar quotas'}
+              </button>
+
+            </div>
+
+          </form>
+
+        </div>
+
+      )}
+
+      {/* ======================================================
+          FORMULÁRIO QUOTA MANUAL
+          ====================================================== */}
 
       {showForm && (
 
@@ -1555,7 +2487,9 @@ function Quotas() {
 
       )}
 
-      {/* LISTA */}
+      {/* ======================================================
+          TABELA DE QUOTAS
+          ====================================================== */}
 
       <div className="table-card">
 
@@ -1749,7 +2683,9 @@ function Quotas() {
 
       </div>
 
-      {/* PAGAMENTOS */}
+      {/* ======================================================
+          PAGAMENTOS
+          ====================================================== */}
 
       {showPaymentForm &&
         selectedQuota && (
@@ -1804,8 +2740,6 @@ function Quotas() {
               </button>
 
             </div>
-
-            {/* RESUMO DA QUOTA */}
 
             <div
               style={{
@@ -2034,8 +2968,6 @@ function Quotas() {
               </div>
 
             )}
-
-            {/* HISTÓRICO */}
 
             <div
               style={{

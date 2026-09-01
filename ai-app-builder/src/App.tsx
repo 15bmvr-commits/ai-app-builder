@@ -13,6 +13,9 @@ import Quotas from './pages/Quotas'
 //import Fees from './pages/Quotas'
 import CurrentAccounts from './pages/CurrentAccounts'
 import Owners from './pages/Owners'
+import Expenses from './pages/Expenses'
+
+
 function App() {
  // const [prompt, setPrompt] = useState('')
   const [connectionStatus, setConnectionStatus] =
@@ -206,6 +209,17 @@ const [selectedPersonId, setSelectedPersonId] =
         setCurrentPage('people')
       }}
     />
+)}
+{currentPage === 'expenses' && (
+  <>
+    <Header
+      title="Despesas"
+      description="Gere as despesas dos teus condomínios."
+      connectionStatus={connectionStatus}
+    />
+
+    <Expenses />
+  </>
 )}
 
 {currentPage === 'fees' && (

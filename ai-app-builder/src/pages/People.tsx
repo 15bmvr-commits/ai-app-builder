@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
@@ -81,6 +82,7 @@ function People() {
 
     if (error) {
       console.error('Erro ao carregar condomínios:', error)
+      setCondominiums([])
       return
     }
 
@@ -88,10 +90,7 @@ function People() {
 
     setCondominiums(condominiumsData)
 
-    if (
-      !selectedCondominium &&
-      condominiumsData.length > 0
-    ) {
+    if (!selectedCondominium && condominiumsData.length > 0) {
       setSelectedCondominium(condominiumsData[0].id)
     }
   }
@@ -124,6 +123,7 @@ function People() {
         fraction_id,
         relation_type,
         is_primary,
+        created_at,
         people (
           id,
           full_name,
@@ -161,7 +161,10 @@ function People() {
         relation_type: item.relation_type,
         is_primary: item.is_primary,
         person: item.people,
-        fraction: item.fractions,
+        fraction: {
+          id: item.fractions.id,
+          fraction_code: item.fractions.fraction_code,
+        },
       }))
 
     setAssociations(result)
@@ -206,7 +209,6 @@ function People() {
     setPostalCode('')
     setCity('')
     setCountry('Portugal')
-
     setSelectedFractions([])
 
     setShowForm(true)
@@ -268,6 +270,10 @@ function People() {
   }
 
   function editPerson(personId: string) {
+    /*
+     * As associações carregadas pertencem apenas ao
+     * condomínio atualmente selecionado.
+     */
     const personAssociations = associations.filter(
       (item) => item.person_id === personId
     )
@@ -353,26 +359,25 @@ function People() {
       }
 
       /*
-       * Primeiro carregamos as associações atuais desta pessoa
-       * dentro das frações do condomínio selecionado.
+       * IMPORTANTE:
+       *
+       * "associations" contém apenas as associações da pessoa
+       * no condomínio atualmente selecionado.
+       *
+       * As associações que eventualmente existam noutros
+       * condomínios não são tocadas.
        */
-
       const currentAssociations = associations.filter(
         (item) => item.person_id === editingPersonId
       )
-
-      /*
-       * IDs das frações atualmente selecionadas.
-       */
 
       const selectedIds = selectedFractions.map(
         (item) => item.fractionId
       )
 
       /*
-       * Apagar associações que foram retiradas no formulário.
+       * Apagar associações que foram retiradas do formulário.
        */
-
       const associationsToDelete =
         currentAssociations.filter(
           (item) => !selectedIds.includes(item.fraction_id)
@@ -393,9 +398,8 @@ function People() {
       }
 
       /*
-       * Atualizar ou criar cada associação.
+       * Atualizar associações existentes ou criar novas.
        */
-
       for (const selection of selectedFractions) {
         const existing = currentAssociations.find(
           (item) =>
@@ -461,14 +465,17 @@ function People() {
       }
 
       /*
-       * Criar uma associação independente para cada fração.
+       * Uma pessoa é criada apenas uma vez.
+       *
+       * Depois criamos uma associação independente
+       * para cada fração selecionada.
        *
        * Exemplo:
        *
-       * João → A → owner
-       * João → B → co_owner
+       * João → Fração A → owner
+       * João → Fração B → co_owner
+       * João → Fração C → representative
        */
-
       const associationsToInsert =
         selectedFractions.map((selection) => ({
           person_id: personId,
@@ -487,7 +494,6 @@ function People() {
          * Se a associação falhar, tentamos eliminar
          * a pessoa que acabámos de criar.
          */
-
         await supabase
           .from('people')
           .delete()
@@ -507,6 +513,9 @@ function People() {
   }
 
   async function deletePerson(personId: string) {
+    /*
+     * Estas associações pertencem ao condomínio atual.
+     */
     const personAssociations = associations.filter(
       (item) => item.person_id === personId
     )
@@ -521,7 +530,10 @@ function People() {
       personAssociations
         .map(
           (item) =>
-            `${item.fraction.fraction_code} (${relationLabels[item.relation_type] ?? item.relation_type})`
+            `${item.fraction.fraction_code} (${
+              relationLabels[item.relation_type] ??
+              item.relation_type
+            })`
         )
         .join(', ')
 
@@ -537,7 +549,6 @@ function People() {
      * Remover todas as associações da pessoa
      * no condomínio atual.
      */
-
     for (const association of personAssociations) {
       const { error } = await supabase
         .from('fraction_people')
@@ -553,16 +564,18 @@ function People() {
     }
 
     /*
-     * Verificar se a pessoa ainda está associada
-     * a alguma outra fração.
+     * Verificar se a pessoa continua associada
+     * a alguma outra fração, eventualmente noutro
+     * condomínio.
      */
-
-    const { data: remainingAssociations, error: checkError } =
-      await supabase
-        .from('fraction_people')
-        .select('id')
-        .eq('person_id', personId)
-        .limit(1)
+    const {
+      data: remainingAssociations,
+      error: checkError,
+    } = await supabase
+      .from('fraction_people')
+      .select('id')
+      .eq('person_id', personId)
+      .limit(1)
 
     if (checkError) {
       console.error(
@@ -575,10 +588,9 @@ function People() {
     }
 
     /*
-     * Se não existir nenhuma associação, podemos
-     * eliminar a pessoa.
+     * Só eliminar a pessoa se já não existir
+     * qualquer associação em nenhum condomínio.
      */
-
     if (
       !remainingAssociations ||
       remainingAssociations.length === 0
@@ -599,6 +611,10 @@ function People() {
     await loadPeople(selectedCondominium)
   }
 
+  /*
+   * Agrupar as associações para mostrar cada pessoa
+   * apenas uma vez na tabela.
+   */
   const groupedPeople = Array.from(
     new Map(
       associations.map((item) => [
@@ -1074,4 +1090,3 @@ function People() {
 }
 
 export default People
-
