@@ -149,26 +149,6 @@ function Dashboard({
             quotas, despesas e documentos num único local.
           </p>
 
-          <div className="prompt-box">
-
-            <textarea
-              placeholder="Escreve aqui uma instrução para a IA..."
-            />
-
-            <div className="prompt-footer">
-
-              <span>
-                0 caracteres
-              </span>
-
-              <button className="create-button">
-                ✨ Criar
-              </button>
-
-            </div>
-
-          </div>
-
         </div>
 
       </section>

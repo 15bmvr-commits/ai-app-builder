@@ -12,6 +12,7 @@ type Person = {
   city: string | null
   country: string | null
   active: boolean
+  user_id: string | null
 }
 
 type Fraction = {
@@ -53,6 +54,10 @@ function PersonDetails({
   const [associations, setAssociations] = useState<Association[]>([])
   const [loading, setLoading] = useState(true)
 
+  const [invitingLoading, setInvitingLoading] = useState(false)
+  const [inviteLink, setInviteLink] = useState('')
+  const [inviteError, setInviteError] = useState('')
+
   useEffect(() => {
     async function loadPerson() {
       setLoading(true)
@@ -70,7 +75,8 @@ function PersonDetails({
             postal_code,
             city,
             country,
-            active
+            active,
+            user_id
           `)
           .eq('id', personId)
           .single()
@@ -134,6 +140,50 @@ function PersonDetails({
 
     loadPerson()
   }, [personId])
+
+  async function sendInvite() {
+    if (!person) {
+      return
+    }
+
+    if (!person.email) {
+      setInviteError('Este condómino não tem email preenchido. Adiciona um email primeiro.')
+      return
+    }
+
+    setInvitingLoading(true)
+    setInviteError('')
+    setInviteLink('')
+
+    const { data, error } = await supabase
+      .from('invites')
+      .insert({
+        person_id: person.id,
+        email: person.email,
+      })
+      .select('token')
+      .single()
+
+    if (error) {
+      console.error('Erro ao criar convite:', error)
+      setInviteError(`Erro ao criar convite: ${error.message}`)
+      setInvitingLoading(false)
+      return
+    }
+
+    const link = `${window.location.origin}${window.location.pathname}?invite=${data.token}`
+    setInviteLink(link)
+    setInvitingLoading(false)
+  }
+
+  async function copyInviteLink() {
+    try {
+      await navigator.clipboard.writeText(inviteLink)
+      alert('Link copiado!')
+    } catch {
+      alert('Não foi possível copiar automaticamente. Copia o link manualmente.')
+    }
+  }
 
   if (loading) {
     return (
@@ -250,6 +300,59 @@ function PersonDetails({
               {person.country ?? '—'}
             </strong>
           </div>
+        </div>
+
+        <div className="detail-card">
+          <h3>Acesso ao portal do condómino</h3>
+
+          {person.user_id ? (
+            <p>✅ Este condómino já tem acesso ao portal.</p>
+          ) : (
+            <>
+              <p>
+                Este condómino ainda não tem conta no portal.
+                Envia-lhe um convite para criar acesso à sua área
+                (documentos, quotas e manutenção da sua fração).
+              </p>
+
+              <button
+                className="secondary-button"
+                onClick={sendInvite}
+                disabled={invitingLoading}
+              >
+                {invitingLoading ? 'A gerar convite...' : '✉️ Gerar convite de acesso'}
+              </button>
+
+              {inviteError && (
+                <div className="login-error" style={{ marginTop: '10px' }}>
+                  {inviteError}
+                </div>
+              )}
+
+              {inviteLink && (
+                <div style={{ marginTop: '12px' }}>
+                  <label>Link do convite (válido 7 dias)</label>
+
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input type="text" value={inviteLink} readOnly />
+
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={copyInviteLink}
+                    >
+                      Copiar
+                    </button>
+                  </div>
+
+                  <p style={{ fontSize: '13px', color: '#6b7280', marginTop: '6px' }}>
+                    Envia este link ao condómino (por email ou WhatsApp)
+                    para que ele crie a sua password de acesso.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         <div className="detail-card">

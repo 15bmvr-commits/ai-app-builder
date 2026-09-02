@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 import Login from './Login'
+import Activate from './Activate'
+import CondoApp from './CondoApp'
 import Sidebar from './components/Sidebar'
 import Header from './components/Header'
 import Condominiums from './pages/Condominiums'
@@ -14,6 +16,10 @@ import Quotas from './pages/Quotas'
 import CurrentAccounts from './pages/CurrentAccounts'
 import Owners from './pages/Owners'
 import Expenses from './pages/Expenses'
+import Maintenance from './pages/Maintenance'
+import Meetings from './pages/Meetings'
+import Documents from './pages/Documents'
+import Settings from './pages/Settings'
 
 
 function App() {
@@ -29,6 +35,14 @@ function App() {
     useState('dashboard')
 const [selectedPersonId, setSelectedPersonId] =
   useState<string | null>(null)
+  // =====================================================
+  // CONVITE (ativação de conta de condómino)
+  // =====================================================
+
+  const inviteToken = new URLSearchParams(window.location.search).get(
+    'invite'
+  )
+
   // =====================================================
   // AUTENTICAÇÃO
   // =====================================================
@@ -60,10 +74,13 @@ const [selectedPersonId, setSelectedPersonId] =
   // PERFIL DO UTILIZADOR
   // =====================================================
 
+  const [condoPersonId, setCondoPersonId] = useState<string | null>(null)
+
   useEffect(() => {
     async function getProfile() {
       if (!session?.user?.id) {
         setProfile(null)
+        setCondoPersonId(null)
         return
       }
 
@@ -86,6 +103,25 @@ const [selectedPersonId, setSelectedPersonId] =
       console.log('Perfil carregado:', data)
 
       setProfile(data)
+
+      if (data.role === 'condomino') {
+        const { data: person, error: personError } = await supabase
+          .from('people')
+          .select('id')
+          .eq('user_id', session.user.id)
+          .single()
+
+        if (personError) {
+          console.error(
+            'Erro ao carregar pessoa associada ao condómino:',
+            personError
+          )
+          setCondoPersonId(null)
+          return
+        }
+
+        setCondoPersonId(person.id)
+      }
     }
 
     getProfile()
@@ -132,11 +168,36 @@ const [selectedPersonId, setSelectedPersonId] =
   }
 
   // =====================================================
+  // ATIVAÇÃO DE CONTA (link de convite)
+  // =====================================================
+
+  if (inviteToken && !session) {
+    return <Activate token={inviteToken} />
+  }
+
+  // =====================================================
   // LOGIN
   // =====================================================
 
   if (!session) {
     return <Login />
+  }
+
+  // =====================================================
+  // PORTAL DO CONDÓMINO
+  // =====================================================
+
+  if (profile?.role === 'condomino') {
+    if (!condoPersonId) {
+      return <div>A carregar...</div>
+    }
+
+    return (
+      <CondoApp
+        personId={condoPersonId}
+        fullName={profile.full_name ?? 'Condómino'}
+      />
+    )
   }
 
   // =====================================================
@@ -243,6 +304,54 @@ const [selectedPersonId, setSelectedPersonId] =
     />
 
     <CurrentAccounts />
+  </>
+)}
+
+{currentPage === 'maintenance' && (
+  <>
+    <Header
+      title="Manutenção"
+      description="Gere os pedidos de manutenção dos teus condomínios."
+      connectionStatus={connectionStatus}
+    />
+
+    <Maintenance />
+  </>
+)}
+
+{currentPage === 'meetings' && (
+  <>
+    <Header
+      title="Assembleias"
+      description="Gere as assembleias dos teus condomínios."
+      connectionStatus={connectionStatus}
+    />
+
+    <Meetings />
+  </>
+)}
+
+{currentPage === 'documents' && (
+  <>
+    <Header
+      title="Documentos"
+      description="Consulta os documentos dos teus condomínios."
+      connectionStatus={connectionStatus}
+    />
+
+    <Documents />
+  </>
+)}
+
+{currentPage === 'settings' && (
+  <>
+    <Header
+      title="Definições"
+      description="Gere o teu perfil e a tua sessão."
+      connectionStatus={connectionStatus}
+    />
+
+    <Settings email={session?.user?.email} profile={profile} />
   </>
 )}
       </main>
